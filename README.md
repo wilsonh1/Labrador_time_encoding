@@ -46,16 +46,17 @@ Documentation for MIMIC-IV's can be found [here](https://mimic.mit.edu/).
 
 Since we'll use the python API to access big quety data, you'll need and account and a project in GCP. Follow the next steps:
 
-    * Create a [Google Cloud Platform Account](https://console.cloud.google.com/bigquery). 
-    * Enable the [BigQuery API](https://console.cloud.google.com/apis/api/bigquery.googleapis.com)
-    * Create a [Service Account](https://console.cloud.google.com/iam-admin/serviceaccounts)
-    * Create an API key in JSON format.
-    * Create a .env file with the command `nano .env` or `touch .env` for Mac and Linux users or `echo. >  .env` for Windows.
-    * Update your .env file with your ***JSON keys*** path.
+* Create a [Google Cloud Platform Account](https://console.cloud.google.com/bigquery). 
+* Enable the [BigQuery API](https://console.cloud.google.com/apis/api/bigquery.googleapis.com)
+* Create a [Service Account](https://console.cloud.google.com/iam-admin/serviceaccounts)
+* Create an API key in JSON format.
+* Create a .env file with the command `nano .env` or `touch .env` for Mac and Linux users or `echo. >  .env` for Windows.
+* Update your .env file with your ***JSON keys*** path.
 
 ```sh
 KEYS_FILE = "Path/to/GoogleCloud_keys.json"
 ```
+
 3. Get the lab values from MIMIC-IV dataset.
 
 Run the Jupyter notebook in the src/get_data.ipynb or src/get_data.ip

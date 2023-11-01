@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 # Load .env file 
 load_dotenv()
 
-# Get GCP's secrets
+# Get GCP keys file path
 KEYS_FILE = os.getenv("KEYS_FILE")
 
 # Set environment variables
@@ -15,7 +15,7 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = KEYS_FILE
 # Initialize the BigQuery client
 client = bigquery.Client()
 
-# Write your BigQuery SQL query
+# Write SQL query
 query = """
 WITH LabCounts AS (
     SELECT hadm_id, itemid, COUNT(*) AS lab_count
