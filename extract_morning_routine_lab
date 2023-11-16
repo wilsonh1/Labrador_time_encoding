@@ -1,0 +1,31 @@
+Nov.15th, try to get the daily morning routine lab test per patient - day
+
+WITH cohort AS (
+  SELECT
+    hadm_id,
+    subject_id,
+    itemid,
+    charttime,
+    EXTRACT(HOUR FROM charttime) AS charthour,
+    storetime,
+    EXTRACT(HOUR FROM storetime) AS storehour,
+    EXTRACT(DATE FROM charttime) AS chartday,
+    valuenum
+  FROM
+    `physionet-data.mimic_hosp.labevents`
+  WHERE EXTRACT(HOUR FROM charttime) BETWEEN 5 AND 8
+    AND itemid IN (50912, 51265, 51222, 51301, 51006, 50983, 50882, 50971)
+),
+patdailycnt AS (
+  SELECT
+    subject_id,
+    chartday,
+    COUNT(DISTINCT itemid) AS cnt
+  FROM cohort
+  GROUP BY subject_id, chartday
+)
+  SELECT *
+  FROM cohort
+  RIGHT JOIN patdailycnt
+  ON cohort.subject_id = patdailycnt.subject_id AND cohort.chartday = patdailycnt.chartday
+  WHERE patdailycnt.cnt = 8
