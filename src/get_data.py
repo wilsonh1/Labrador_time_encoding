@@ -3,92 +3,46 @@ from google.cloud import bigquery
 import os
 from dotenv import load_dotenv
 
-# Load .env file 
-load_dotenv()
+def get_df(query, save_csv=False, csv_name="data.csv"):
+  """
+  Get a Pandas DataFrame from a BigQuery query.
 
-# Get GCP keys file path
-KEYS_FILE = os.getenv("KEYS_FILE")
+  params:
+    query: str
+      The query to run on BigQuery.
+    save_csv: bool
+      Whether to save the DataFrame to a CSV file.
+    csv_name: str
+      The name of the CSV file to save the DataFrame to.
+  returns:
+    df: Pandas DataFrame
+      The DataFrame containing the results of the query.
+  """
+  # Load .env file 
+  load_dotenv()
 
-# Set environment variables
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = KEYS_FILE
+  # Get GCP keys file path
+  KEYS_FILE = os.getenv("KEYS_FILE")
 
-# Initialize the BigQuery client
-client = bigquery.Client()
+  # Set environment variables
+  os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = KEYS_FILE
 
-# Write the SQL query
+  # Initialize the BigQuery client
+  client = bigquery.Client()
 
-## OPTION 1: Filter by grouping hadmid and itemid (Lab counts per admission 1 independently on how many times the lab was taken in the admission) 
-# E.g. Lab taken 3 times in the same admission, counts as 1
-# Filtering by 500: Returns 6188
-# Filtering by 5: Returns 40,557,000 rows
-query = """
-WITH LabCounts AS (
-    SELECT 
-      hadm_id, 
-      itemid, 
-      COUNT(*) AS lab_count
-    FROM 
-      `physionet-data.mimiciv_hosp.labevents`
-    GROUP BY 
-    hadm_id, itemid
-    HAVING 
-      COUNT(*) >= 500
-)
+  # Run the query
+  query_job = client.query(query)
 
-SELECT 
-  l.hadm_id, 
-  l.subject_id,
-  l.itemid, 
-  l.charttime, 
-  l.storetime, 
-  l.valuenum
-FROM 
-  `physionet-data.mimiciv_hosp.labevents` AS l
-INNER JOIN 
-  LabCounts AS c
-ON 
-  l.hadm_id = c.hadm_id AND l.itemid = c.itemid
-ORDER BY 
-  l.hadm_id, l.charttime;
-"""
+  # Wait for the query to complete
+  results = query_job.result()
 
-## OPTION 2: Filter by just itemid (Lab counts 1 every time lab was taken): 
-# E.g. Lab taken 10 times in the same admission, counts as 10
-# Filtering by 500: Returns 118,128,502 rows
+  # Convert the results to a Pandas DataFrame
+  df = results.to_dataframe()
 
-query = """
-WITH LabCodeCounts AS (
-  SELECT
-    itemid,
-    COUNT(*) AS code_count
-  FROM
-    `physionet-data.mimiciv_hosp.labevents`
-  GROUP BY
-    itemid
-  HAVING
-    code_count > 500
-)
+  # Save the DataFrame to a CSV file
+  if save_csv:
+    os.makedirs("data", exist_ok=True)
+    path = os.path.join("data", csv_name)
+    df.to_csv(path, index=False)
 
-SELECT
-  le.hadm_id,
-  le.subject_id,
-  le.itemid,
-  le.charttime,
-  le.storetime,
-  le.valuenum
-FROM
-  `physionet-data.mimiciv_hosp.labevents` AS le
-JOIN
-  LabCodeCounts AS lcc
-ON
-  le.itemid = lcc.itemid;
-"""
-
-# Run the query
-query_job = client.query(query)
-
-# Wait for the query to complete
-results = query_job.result()
-
-# Convert the results to a Pandas DataFrame
-df = results.to_dataframe()
+  return df

@@ -1,6 +1,7 @@
 # By now .csv files
 *.csv
 *.json
+mode/*
 
 # macOS system files
 .DS_Store
