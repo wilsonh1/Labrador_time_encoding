@@ -1,7 +1,8 @@
 # By now .csv files
 *.csv
 *.json
-mode/*
+model/*
+tokenizer/*
 
 # macOS system files
 .DS_Store

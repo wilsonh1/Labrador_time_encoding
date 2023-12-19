@@ -5,7 +5,7 @@ from transformers import AdamW
 from tqdm import tqdm
 
 
-def train_mlm(model, train_loader, test_loader, device, lr=5e-5, epochs=2, save=True, model_path="model/", tokenizer_path="tokenizer/"):
+def train_mlm(model, train_loader, test_loader, device, tokenizer, lr=5e-5, epochs=2, save=True, model_path="model/", tokenizer_path="tokenizer/"):
     """
     Trains a masked language model (MLM) using a specified DataLoader for training and evaluation.
 

@@ -1,5 +1,6 @@
 import numpy as np
 from transformers import BertForMaskedLM, BertTokenizer
+import torch
 
 def load_model(model_path="model/", tokenizer_path="tokenizer/"):
     """
