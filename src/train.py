@@ -83,7 +83,6 @@ def train_mlm(model, train_loader, test_loader, device, tokenizer, lr=5e-5, epoc
         model.save_pretrained(model_path)
         tokenizer.save_pretrained(tokenizer_path)
     
-    
     # Plotting
     plt.plot(train_losses, label='Train Loss')
     plt.xlabel('Iteration')
