@@ -3,7 +3,35 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import torch
 
-def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']):
+from sklearn.preprocessing import StandardScaler
+
+def log_transform_scale_and_bin(data, num_bins=None):
+
+    # Handle Pandas DataFrame input
+    if isinstance(data, pd.DataFrame):
+        data = data.values
+        
+    # Apply logarithmic transformation with a small constant to avoid log(0)
+    log_data = np.log(data + 1)
+
+    # Apply standard scaling
+
+    scaler = StandardScaler()
+
+    scaled_data = scaler.fit_transform(log_data)
+
+
+    # Apply binning if num_bins is specified
+
+    if num_bins is not None:
+
+        binned_data = pd.qcut(scaled_data.flatten(), num_bins, labels=False, duplicates='drop').reshape(scaled_data.shape)
+
+        return binned_data
+
+    return scaled_data
+
+def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc'], num_bins=10):
     """
     Preprocesses a DataFrame containing medical records, including sorting, sampling, pivoting, renaming columns, 
     dropping NaN values, and scaling selected columns.
@@ -30,11 +58,16 @@ def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Po
     mrl = mrl_full.dropna()
     mrl = mrl.rename(columns={50882: 'Bic', 50912: 'Crt', 50971: 'Pot', 50983: 'Sod', 51006: 'Ure', 51222: 'Hgb', 51265: 'Plt', 51301: 'Wbc'})
     columns_to_scale = ['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']
-
-    # Scale selected columns
-    mrl[columns_to_scale] = scaler.fit_transform(mrl[columns_to_scale])
+    
+    
+    if scaler == 'log':
+        mrl[columns_to_scale] = log_transform_scale_and_bin(mrl[columns_to_scale], num_bins=num_bins)
+    else:
+        # Scale selected columns
+        mrl[columns_to_scale] = scaler.fit_transform(mrl[columns_to_scale])
     
     return mrl
+
 
 
 def random_train_test_split(data, train_percent=.8):
@@ -105,12 +138,18 @@ class TextEncoder:
     grouped_df : pandas DataFrame
         A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
     """
-    def __init__(self):
+    def __init__(self, bins=None):
         """
         Initializes the TextEncoder instance and generates a mapping of integers to letters.
         """
-        # Generate letters for numbers from 0 to 99
-        self.letters_mapping = {i: self.int_to_letters(i) for i in range(101)}
+        self.bins = bins
+        if self.bins:
+            # Generate letters for numbers from 0 to num_bins
+            self.letters_mapping = {i: self.int_to_letters(i) for i in range(self.bins)}
+        else:
+            # Generate letters for numbers from 0 to 99
+            self.letters_mapping = {i: self.int_to_letters(i) for i in range(101)}
+            
 
     def int_to_letters(self, number):
         """
@@ -149,7 +188,10 @@ class TextEncoder:
         str
             Uppercase letter based on the input scaled value.
         """
-        return self.letters_mapping[int(value * 100)]
+        if self.bins:
+            return self.letters_mapping[int(value)]
+        else:
+            return self.letters_mapping[int(value * 100)]
 
     def encode_text(self, df, columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']):
         """
@@ -172,14 +214,14 @@ class TextEncoder:
             A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
         """
         df['nstr'] = df[columns_to_scale].apply(
-            lambda row: ' '.join(f'{col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+            lambda row: ' '.join(f'{col} {col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
             axis=1)
         grouped_df = df.groupby('hadm_id')['nstr'].apply(list).reset_index()
 
         return df, grouped_df
 
     
-def randomly_mask_dataset(inputs, parcentage=0.20, CLS=101, SEP=102, PAD=0):
+def randomly_mask_dataset(inputs, parcentage=0.20, CLS=101, SEP=102, PAD=0, MASK=103):
     """
     Randomly masks a percentage of non-special tokens in the input tensor.
 
@@ -217,11 +259,11 @@ def randomly_mask_dataset(inputs, parcentage=0.20, CLS=101, SEP=102, PAD=0):
         masked.append(torch.flatten(mask_arr[i].nonzero()).tolist())
 
     for i in range(inputs.input_ids.shape[0]):
-        inputs.input_ids[i, masked[i]] = 103
+        inputs.input_ids[i, masked[i]] = MASK
 
     return inputs
 
-def set_labels_features(train, test, parcentage=0.20):
+def set_labels_features(train, test, parcentage=0.20, CLS=101, SEP=102, PAD=0, MASK=103):
     """
     Sets labels in the input tensors and randomly masks a percentage of non-special tokens.
 
@@ -247,7 +289,7 @@ def set_labels_features(train, test, parcentage=0.20):
     train['labels'] = train.input_ids.detach().clone()
     test['labels'] = test.input_ids.detach().clone()
 
-    train = randomly_mask_dataset(train, parcentage=parcentage)
-    test = randomly_mask_dataset(test, parcentage=parcentage)
+    train = randomly_mask_dataset(train, parcentage=parcentage, CLS=CLS, SEP=SEP, PAD=PAD, MASK=MASK)
+    test = randomly_mask_dataset(test, parcentage=parcentage, CLS=CLS, SEP=SEP, PAD=PAD, MASK=MASK)
     
     return train, test
