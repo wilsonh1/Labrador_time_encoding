@@ -138,10 +138,12 @@ class TextEncoder:
     grouped_df : pandas DataFrame
         A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
     """
-    def __init__(self, bins=None):
+    def __init__(self, bins=None, Repetition_id=False, lab_id=False):
         """
         Initializes the TextEncoder instance and generates a mapping of integers to letters.
         """
+        self.Repetition_id = Repetition_id
+        self.lab_id = lab_id
         self.bins = bins
         if self.bins:
             # Generate letters for numbers from 0 to num_bins
@@ -213,9 +215,24 @@ class TextEncoder:
         grouped_df : pandas DataFrame
             A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
         """
-        df['nstr'] = df[columns_to_scale].apply(
-            lambda row: ' '.join(f'{col} {col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
-            axis=1)
+        if self.Repetition_id:
+            if self.lab_id:
+                df['nstr'] = df[columns_to_scale].apply(
+                    lambda row: ' '.join(f'{col} {col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    axis=1)
+            else:
+                df['nstr'] = df[columns_to_scale].apply(
+                    lambda row: ' '.join(f'{col} {self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    axis=1)
+        else:
+            if self.lab_id:
+                df['nstr'] = df[columns_to_scale].apply(
+                    lambda row: ' '.join(f'{col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    axis=1)
+            else:
+                df['nstr'] = df[columns_to_scale].apply(
+                    lambda row: ' '.join(f'{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    axis=1)                
         grouped_df = df.groupby('hadm_id')['nstr'].apply(list).reset_index()
 
         return df, grouped_df
