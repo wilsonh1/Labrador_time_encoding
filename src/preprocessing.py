@@ -232,7 +232,7 @@ class TextEncoder:
             else:
                 df['nstr'] = df[columns_to_scale].apply(
                     lambda row: ' '.join(f'{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
-                    axis=1)                
+                    axis=1)
         grouped_df = df.groupby('hadm_id')['nstr'].apply(list).reset_index()
 
         return df, grouped_df

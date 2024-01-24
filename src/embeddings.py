@@ -59,5 +59,8 @@ def get_embeddings(model, tokenizer, texts):
 
     # Extract the embeddings from the last hidden state
     embeddings = np.array(embeddings.hidden_states[-1])
+    
+    # Remove initial and final embeddings for [CLS] and [SEP] tokens
+    embeddings = embeddings[:, 1:-1, :]
 
     return embeddings
