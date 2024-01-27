@@ -138,13 +138,16 @@ class TextEncoder:
     grouped_df : pandas DataFrame
         A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
     """
-    def __init__(self, bins=None, Repetition_id=False, lab_id=False):
+    def __init__(self, bins=None, Repetition_id=False, lab_id=False, labs_as_num=False, return_lists=False):
         """
         Initializes the TextEncoder instance and generates a mapping of integers to letters.
         """
         self.Repetition_id = Repetition_id
         self.lab_id = lab_id
         self.bins = bins
+        self.labs_as_num = labs_as_num
+        self.return_lists = return_lists
+        
         if self.bins:
             # Generate letters for numbers from 0 to num_bins
             self.letters_mapping = {i: self.int_to_letters(i) for i in range(self.bins)}
@@ -194,7 +197,31 @@ class TextEncoder:
             return self.letters_mapping[int(value)]
         else:
             return self.letters_mapping[int(value * 100)]
+        
+    @staticmethod
+    def string_to_lists(sequence, is_list=True):
+        """
+        Converts a string representation of a list into a list.
 
+        Parameters:
+        -----------
+        string : str
+            The string representation of a list to be converted.
+
+        Returns:
+        --------
+        list
+            The converted list.
+        """
+        if is_list:
+            lab_ids = sequence.apply(lambda x: [word for index, word in enumerate(x[0].split(' ')) if index % 2 == 0])
+            lab_values = sequence.apply(lambda x: [word for index, word in enumerate(x[0].split(' ')) if index % 2 == 1])
+        else:
+            lab_ids = sequence.apply(lambda x: [word for index, word in enumerate(x.split(' ')) if index % 2 == 0])
+            lab_values = sequence.apply(lambda x: [word for index, word in enumerate(x.split(' ')) if index % 2 == 1])
+        
+        return lab_ids, lab_values
+        
     def encode_text(self, df, columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']):
         """
         Encodes numerical values in the specified columns of a DataFrame into a text representation.
@@ -215,26 +242,46 @@ class TextEncoder:
         grouped_df : pandas DataFrame
             A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
         """
-        if self.Repetition_id:
-            if self.lab_id:
+        if self.labs_as_num:
+            if self.Repetition_id:
                 df['nstr'] = df[columns_to_scale].apply(
-                    lambda row: ' '.join(f'{col} {col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    lambda row: ' '.join(f'{col} {val}' for col, val in zip(columns_to_scale, row)),
                     axis=1)
             else:
                 df['nstr'] = df[columns_to_scale].apply(
-                    lambda row: ' '.join(f'{col} {self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                    lambda row: ' '.join(f'{val}' for col, val in zip(columns_to_scale, row)),
                     axis=1)
         else:
-            if self.lab_id:
-                df['nstr'] = df[columns_to_scale].apply(
-                    lambda row: ' '.join(f'{col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
-                    axis=1)
+            if self.Repetition_id:
+                if self.lab_id:
+                    df['nstr'] = df[columns_to_scale].apply(
+                        lambda row: ' '.join(f'{col} {col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                        axis=1)
+                else:
+                    df['nstr'] = df[columns_to_scale].apply(
+                        lambda row: ' '.join(f'{col} {self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                        axis=1)
             else:
-                df['nstr'] = df[columns_to_scale].apply(
-                    lambda row: ' '.join(f'{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
-                    axis=1)
+                if self.lab_id:
+                    df['nstr'] = df[columns_to_scale].apply(
+                        lambda row: ' '.join(f'{col}{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                        axis=1)
+                else:
+                    df['nstr'] = df[columns_to_scale].apply(
+                        lambda row: ' '.join(f'{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
+                        axis=1)
         grouped_df = df.groupby('hadm_id')['nstr'].apply(list).reset_index()
-
+        
+        if self.return_lists:
+            
+            lab_ids, lab_values = self.string_to_lists(grouped_df['nstr'], is_list=True)
+            grouped_df['lab_ids'] = lab_ids
+            grouped_df['lab_values'] = lab_values
+            
+            lab_ids, lab_values = self.string_to_lists(df['nstr'], is_list=False)
+            df['lab_ids'] = lab_ids
+            df['lab_values'] = lab_values
+        
         return df, grouped_df
 
     
