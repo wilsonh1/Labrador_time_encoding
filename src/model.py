@@ -1,67 +1,59 @@
-# Bert model architecture to process tuples (labid, value)
-
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-# Constants
-vocab_size = 10000 # Number of lab values
-max_seq_length = 128 # Sequence length
-hidden_size = 256 # Hidden size
-num_attention_heads = 4 # Number of attention heads in the transformer
-num_transformer_layers = 1 # Number of transformer layers
+class ContinuousEmbedding(nn.Module):
+    def __init__(self, embedding_dim, pad_token, mask_token, null_token):
+        super(ContinuousEmbedding, self).__init__()
+        self.pad_token = pad_token
+        self.mask_token = mask_token
+        self.null_token = null_token
+        self.embedding_dim = embedding_dim
+        self.special_token_embeddings = nn.Embedding(2, embedding_dim)
+        self.dense1 = nn.Linear(1, embedding_dim)  # Assuming single-dimensional continuous input
+        self.dense2 = nn.Linear(embedding_dim, embedding_dim)
+        self.layernorm = nn.LayerNorm(embedding_dim)
 
-# Input tokens (random integers)
-lab_ids = torch.randint(0, vocab_size, (1, max_seq_length))
-# Values are continuous number (Noramlized between 0 and 1)
-lab_values = torch.rand((1, max_seq_length))
+    def forward(self, x_continuous, x_categorical_embeddings):
+        # Handle special tokens
+        special_embeddings = self.special_token_embeddings(torch.tensor([self.mask_token, self.null_token]))
+        
+        # Apply linear and non-linear transformations
+        x_continuous = self.dense1(x_continuous.unsqueeze(-1))
+        x_continuous = F.relu(self.dense2(x_continuous))
 
-# Create the dictionary of lab values
-lab_dict = {}
-for i in range(lab_ids.shape[1]):
-    lab_dict[lab_ids[0, i].item()] = lab_values[0, i].item()
+        # Combine with categorical embeddings and apply layer normalization
+        combined_embeddings = x_continuous + x_categorical_embeddings
+        return self.layernorm(combined_embeddings), special_embeddings
 
-# Token embeddings
-embedding_layer = nn.Embedding(vocab_size, hidden_size)
-token_embeddings = embedding_layer(input_tokens)
 
-# Positional encodings
-position_encodings = torch.arange(0, max_seq_length).unsqueeze(0)
-position_encodings = embedding_layer(position_encodings)
+class Labrador(nn.Module):
+    def __init__(self, output_dim, vocab_size, pad_token, null_token, mask_token, embedding_dim=768, transformer_heads=4, transformer_feedforward_dim=256, transformer_blocks=1, include_head=True):
+        super(Labrador, self).__init__()
+        self.embedding_dim = embedding_dim
+        # Define the embedding layers
+        self.categorical_embedding_layer = nn.Embedding(vocab_size + 2, self.embedding_dim)
+        self.continuous_embedding_layer, self.special_embeddings = ContinuousEmbedding(self.embedding_dim, pad_token, 
+                                                                mask_token, null_token)
 
-# Transformer encoder layer
-class TransformerEncoderLayer(nn.Module):
-    def __init__(self, hidden_size, num_attention_heads):
-        super(TransformerEncoderLayer, self).__init__()
-        self.attention = nn.MultiheadAttention(hidden_size, num_attention_heads)
-        self.feed_forward = nn.Sequential(
-            nn.Linear(hidden_size, 4 * hidden_size),
-            nn.ReLU(),
-            nn.Linear(4 * hidden_size, hidden_size)
-        )
-    
-    def forward(self, x):
-        attn_output, _ = self.attention(x, x, x)
-        x = x + attn_output
-        feed_forward_output = self.feed_forward(x)
-        x = x + feed_forward_output
-        return x
+        # Define the transformer blocks
+        transformer_layer = nn.TransformerEncoderLayer(d_model=self.embedding_dim,
+                                                        nhead=transformer_heads, 
+                                                        dim_feedforward=transformer_feedforward_dim)
+        self.transformer_encoder = nn.TransformerEncoder(transformer_layer, num_layers=transformer_blocks)
 
-# BERT-like model
-class BERT(nn.Module):
-    def __init__(self, vocab_size, hidden_size, num_attention_heads, num_transformer_layers):
-        super(BERT, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, hidden_size)
-        self.transformer_layers = nn.ModuleList([TransformerEncoderLayer(hidden_size, num_attention_heads) for _ in range(num_transformer_layers)])
-    
-    def forward(self, input_tokens):
-        embeddings = self.embedding(input_tokens) + position_encodings
-        for layer in self.transformer_layers:
-            embeddings = layer(embeddings)
-        return embeddings
+        # Define output heads, if any
+        if include_head:
+            self.output_head = nn.Linear(self.embedding_dim, output_dim)  # Define output_dim based on the task
 
-# Instantiate the BERT model
-bert_model = BERT(vocab_size, hidden_size, num_attention_heads, num_transformer_layers)
-
-# Forward pass
-output = bert_model(input_tokens)
-print(output.shape)  # Should print torch.Size([1, max_seq_length, hidden_size])
+    def forward(self, x_categorical, x_continuous):
+        categorical_embeddings = self.categorical_embedding_layer(x_categorical)
+        continuous_embeddings = self.continuous_embedding_layer(x_continuous, categorical_embeddings)
+        
+        # Apply transformer blocks
+        transformer_output = self.transformer_encoder(continuous_embeddings)
+        
+        # Apply output head, if included
+        if self.output_head is not None:
+            return self.output_head(transformer_output)
+        return transformer_output
