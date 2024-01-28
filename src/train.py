@@ -109,7 +109,7 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
         optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     else:
         raise ValueError("Please specify a valid optimizer (Adam or SGD)")
-    
+    count_print = 0
     for epoch in range(num_epochs):
         model.train()
         total_train_loss = 0
@@ -124,6 +124,11 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
             labels_continuous = batch['labels_continuous'].to(device)
 
             outputs = model(input_ids, continuous, attn_mask=attn_mask)
+            if count_print == 0:
+                print(outputs['categorical_output'])
+                print(outputs['continuous_output'])
+                count_print += 1
+                
             
             masked_cat_indices = (input_ids == train_loader.dataset.tokenizer.mask_token).to(device)
             categorical_loss = categorical_loss_fn(outputs['categorical_output'][masked_cat_indices], labels_input_ids[masked_cat_indices])
@@ -154,6 +159,11 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
                 labels_continuous = batch['labels_continuous'].to(device)
 
                 outputs = model(input_ids, continuous, attn_mask=attn_mask)
+                
+                if count_print == 1:
+                    print(outputs['categorical_output'])
+                    print(outputs['continuous_output'])
+                    count_print += 1
 
                 masked_cat_indices = (input_ids == val_loader.dataset.tokenizer.mask_token).to(device)
                 categorical_loss = categorical_loss_fn(outputs['categorical_output'][masked_cat_indices], labels_input_ids[masked_cat_indices])
