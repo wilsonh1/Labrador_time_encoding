@@ -342,3 +342,18 @@ class LabradorTokenizer:
         indices = self.get_masking_indices(length_list, len(masked_tokens['continuous']),masking_prob)
         masked_tokens['continuous'][indices] = self.mask_token
         return masked_tokens
+
+    def save_pretrained(self, save_directory):
+        import os
+        import json
+        # Save your tokenizer's state
+        tokenizer_config = {
+            "vocab": self.vocab,
+            "mask_token": self.mask_token,
+            "null_token": self.null_token,
+            "pad_token": self.pad_token,
+            "special_tokens": self.special_tokens
+        }
+        os.makedirs(save_directory, exist_ok=True)
+        with open(os.path.join(save_directory, "tokenizer_config.json"), "w") as f:
+            json.dump(tokenizer_config, f)
