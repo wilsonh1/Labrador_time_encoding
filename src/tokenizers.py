@@ -174,7 +174,7 @@ class LabradorTokenizer:
         self.vocab["[NULL]"] = self.null_token
         self.vocab["[PAD]"] = self.pad_token
 
-    def tokenize(self, categorical_data, continuous_data, max_length):
+    def tokenize(self, categorical_data, continuous_data, max_length, return_tensors=None):
         """
         Tokenizes and encodes a single sequence of categorical and continuous data, applying padding as necessary.
 
@@ -204,6 +204,9 @@ class LabradorTokenizer:
             "continuous": continuous_tokens,
             "attention_mask": [0 if token == self.pad_token else 1 for token in categorical_tokens]
         }
+        
+        if return_tensors:
+            output = {key: torch.tensor(val, dtype=torch.long) if key == "input_ids" else torch.tensor(val, dtype=torch.float32) for key, val in output.items()}
 
         return output
     
@@ -288,3 +291,54 @@ class LabradorTokenizer:
             list of str: The decoded string representations of the token IDs.
         """
         return [self.inverse_vocab.get(token, "[UNK]") for token in tokens]
+    
+    def get_masking_indices(self, length, total_length, masking_prob=0.15):
+        """
+        Retrieves the indices of tokens to mask, based on the masking probability.
+
+        Args:
+            length (int): The length of the sequence to mask.
+            masking_prob (float, optional): The probability of masking a token. Default is 0.15.
+
+        Returns:
+            list of int: The indices of tokens to mask.
+        """
+        length = int(length)
+
+        indices = np.random.rand(length) < masking_prob
+
+        if indices.sum() == 0:
+            idx = [np.random.randint(length)]
+            return idx
+
+        # Get the indices of the tokens to mask (positions where indices is True)
+        indices = np.arange(length)[indices]
+            
+        return indices
+        
+        
+
+    def mask_tokens(self, tokens, masking_prob=0.15):
+        """
+        Masks a sequence of tokens according to the specified masking probability.
+
+        Args:
+            tokens (list of int): A list of token IDs to mask.
+            masking_prob (float, optional): The probability of masking a token. Default is 0.15.
+
+        Returns:
+            list of int: The masked token IDs.
+        """
+        masked_tokens = tokens.copy()
+        if masked_tokens['attention_mask'].sum() < 2:
+            return masked_tokens
+        else:
+            length_list = masked_tokens['attention_mask'].sum()
+        
+        # mask the categorical tokens
+        indices = self.get_masking_indices(length_list, len(masked_tokens['input_ids']), masking_prob)
+        masked_tokens['input_ids'][indices] = self.mask_token
+        
+        indices = self.get_masking_indices(length_list, len(masked_tokens['continuous']),masking_prob)
+        masked_tokens['continuous'][indices] = self.mask_token
+        return masked_tokens
