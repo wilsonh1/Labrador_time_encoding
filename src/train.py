@@ -94,14 +94,15 @@ def train_mlm(model, train_loader, test_loader, device, tokenizer, lr=5e-5, epoc
     
     
 
-def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth'):
-    train_losses = []
-    val_losses = []
 
-    # Move model to the specified device
+def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth'):
+    train_losses_per_iter = []
+    val_losses_per_iter = []
+    train_losses_per_epoch = []
+    val_losses_per_epoch = []
+
     model.to(device)
     
-    # Reinitialize optimizer with model parameters after moving the model to the desired device
     if optimizer == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=0.001)    
     elif optimizer == 'SGD':
@@ -110,46 +111,42 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
         raise ValueError("Please specify a valid optimizer (Adam or SGD)")
     
     for epoch in range(num_epochs):
-        # Training phase
         model.train()
         total_train_loss = 0
-
-        for batch in train_loader:
+        train_loop = tqdm(train_loader, leave=True)
+        for batch in train_loop:
             optimizer.zero_grad()
 
-            # Move batch data to the specified device
             input_ids = batch['input_ids'].to(device)
             continuous = batch['continuous'].to(device)
             attn_mask = batch['attention_mask'].to(device)
             labels_input_ids = batch['labels_input_ids'].to(device)
             labels_continuous = batch['labels_continuous'].to(device)
 
-            # Forward pass
             outputs = model(input_ids, continuous, attn_mask=attn_mask)
             
-            # Compute loss for masked values
             masked_cat_indices = (input_ids == train_loader.dataset.tokenizer.mask_token).to(device)
             categorical_loss = categorical_loss_fn(outputs['categorical_output'][masked_cat_indices], labels_input_ids[masked_cat_indices])
             
             masked_cont_indices = (continuous == train_loader.dataset.tokenizer.mask_token).to(device)
             continuous_loss = continuous_loss_fn(outputs['continuous_output'][masked_cont_indices].squeeze(), labels_continuous[masked_cont_indices])
-            continuous_loss = torch.sqrt(continuous_loss)  # RMSE
+            continuous_loss = torch.sqrt(continuous_loss)
 
-            # Combine and backpropagate losses
             loss = categorical_loss + continuous_loss
-            total_train_loss += loss.item()
             loss.backward()
             optimizer.step()
 
-        avg_train_loss = total_train_loss / len(train_loader)
-        train_losses.append(avg_train_loss)
+            total_train_loss += loss.item()
+            train_losses_per_iter.append(loss.item())
         
-        # Validation phase
+        avg_train_loss = total_train_loss / len(train_loader)
+        train_losses_per_epoch.append(avg_train_loss)
+        
         model.eval()
         total_val_loss = 0
         with torch.no_grad():
-            for batch in val_loader:
-                # Move batch data to the specified device
+            val_loop = tqdm(val_loader, leave=True)
+            for batch in val_loop:
                 input_ids = batch['input_ids'].to(device)
                 continuous = batch['continuous'].to(device)
                 attn_mask = batch['attention_mask'].to(device)
@@ -163,27 +160,37 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
                 
                 masked_cont_indices = (continuous == val_loader.dataset.tokenizer.mask_token).to(device)
                 continuous_loss = continuous_loss_fn(outputs['continuous_output'][masked_cont_indices].squeeze(), labels_continuous[masked_cont_indices])
-                continuous_loss = torch.sqrt(continuous_loss)  # RMSE
+                continuous_loss = torch.sqrt(continuous_loss)
 
                 val_loss = categorical_loss + continuous_loss
                 total_val_loss += val_loss.item()
+                val_losses_per_iter.append(val_loss.item())
 
         avg_val_loss = total_val_loss / len(val_loader)
-        val_losses.append(avg_val_loss)
+        val_losses_per_epoch.append(avg_val_loss)
 
         print(f"Epoch {epoch+1}/{num_epochs}, Training Loss: {avg_train_loss}, Validation Loss: {avg_val_loss}")
 
-        # Save the model
         if save_model:
             torch.save(model.state_dict(), model_path)
 
-    # Plot training and validation losses
-    plt.plot(train_losses, label='Training Loss')
-    plt.plot(val_losses, label='Validation Loss')
+    plt.figure(figsize=(12, 8))
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses_per_iter, label='Training Loss (Per Iteration)')
+    #plt.plot(range(0, len(train_losses_per_iter), len(train_loader)), val_losses_per_iter, label='Validation Loss (Per Iteration)', linestyle='--')
+    plt.xlabel('Iterations')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Losses Per Iteration')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(train_losses_per_epoch, label='Training Loss (Per Epoch)')
+    plt.plot(val_losses_per_epoch, label='Validation Loss (Per Epoch)')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
-    plt.title('Training and Validation Losses')
+    plt.title('Training and Validation Losses Per Epoch')
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
     return model
