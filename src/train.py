@@ -95,7 +95,7 @@ def train_mlm(model, train_loader, test_loader, device, tokenizer, lr=5e-5, epoc
     
 
 
-def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth', continuous_loss_weight=1.0, categorical_loss_weight=1.0):
+def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth', continuous_loss_weight=1.0, categorical_loss_weight=1.0, lr=0.001, verbose=False):
     train_losses_per_iter = []
     val_losses_per_iter = []
     train_losses_per_epoch = []
@@ -104,12 +104,13 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
     model.to(device)
     
     if optimizer == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=0.001)    
+        optimizer = optim.Adam(model.parameters(), lr=lr)    
     elif optimizer == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
     else:
         raise ValueError("Please specify a valid optimizer (Adam or SGD)")
     count_print = 0
+    iteration = 0
     for epoch in range(num_epochs):
         model.train()
         total_train_loss = 0
@@ -122,12 +123,36 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
             attn_mask = batch['attention_mask'].to(device)
             labels_input_ids = batch['labels_input_ids'].to(device)
             labels_continuous = batch['labels_continuous'].to(device)
+            
+            # If no 0s in attention mask, set it to None
+            attn_mask_zero = (attn_mask == 0).any().item()
+            if attn_mask_zero == 0:
+                # print('No 0s in attention mask')
+                attn_mask = None
 
             outputs = model(input_ids, continuous, attn_mask=attn_mask)
-            if count_print == 0:
-                print(outputs['categorical_output'])
-                print(outputs['continuous_output'])
-                count_print += 1
+            if verbose:
+                if count_print == 0:
+                    print(f'Iteration {1}')
+                    print('Labels')
+                    print(labels_input_ids)
+                    print(labels_continuous)
+                    print('Predictions')
+                    print(outputs['categorical_output'])
+                    print(outputs['continuous_output'])
+                    count_print += 1
+                
+            # print outputs in the middle of the epoch
+                if iteration == 100:
+                    print(f'Iteration {iteration}')
+                    print('Labels')
+                    print(labels_input_ids)
+                    print(labels_continuous)
+                    print('Predictions')
+                    print(outputs['categorical_output'])
+                    print(outputs['continuous_output'])
+                    iteration = 0
+                iteration += 1
                 
             
             masked_cat_indices = (input_ids == train_loader.dataset.tokenizer.mask_token).to(device)
@@ -157,13 +182,24 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
                 attn_mask = batch['attention_mask'].to(device)
                 labels_input_ids = batch['labels_input_ids'].to(device)
                 labels_continuous = batch['labels_continuous'].to(device)
+                
+                # If no 0s in attention mask, set it to None
+                attn_mask_zero = (attn_mask == 0).any().item()
+                if attn_mask_zero == 0:
+                    # print('No 0s in attention mask')
+                    attn_mask = None
 
                 outputs = model(input_ids, continuous, attn_mask=attn_mask)
                 
-                if count_print == 1:
-                    print(outputs['categorical_output'])
-                    print(outputs['continuous_output'])
-                    count_print += 1
+                if verbose:
+                    if count_print == 1:
+                        print('Labels')
+                        print(labels_input_ids)
+                        print(labels_continuous)
+                        print('Predictions')
+                        print(outputs['categorical_output'])
+                        print(outputs['continuous_output'])
+                        count_print += 1
 
                 masked_cat_indices = (input_ids == val_loader.dataset.tokenizer.mask_token).to(device)
                 categorical_loss = categorical_loss_fn(outputs['categorical_output'][masked_cat_indices], labels_input_ids[masked_cat_indices])

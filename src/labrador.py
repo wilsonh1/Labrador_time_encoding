@@ -74,6 +74,12 @@ class MLMPredictionHead(nn.Module):
         # Activation function for continuous head
         if continuous_head_activation == 'relu':
             self.continuous_head_activation = nn.ReLU()
+        elif continuous_head_activation == 'sigmoid':
+            self.continuous_head_activation = nn.Sigmoid()
+        elif continuous_head_activation == 'tanh':
+            self.continuous_head_activation = nn.Tanh()
+        elif continuous_head_activation == 'linear':
+            self.continuous_head_activation = nn.Identity()
         else:
             raise ValueError(f"Unsupported continuous head activation: {continuous_head_activation}")
 
