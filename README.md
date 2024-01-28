@@ -28,6 +28,8 @@ cd Labrador_time_encoding
 
 #### 1.  Install dependencies:
 
+In this case we used python 3.9.12.
+
 Copy code
 
 ```{bash}
