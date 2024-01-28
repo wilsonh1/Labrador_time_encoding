@@ -95,7 +95,7 @@ def train_mlm(model, train_loader, test_loader, device, tokenizer, lr=5e-5, epoc
     
 
 
-def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth'):
+def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continuous_loss_fn, optimizer='Adam', num_epochs=2, device='cpu', save_model=False, model_path='labrador_model.pth', continuous_loss_weight=1.0, categorical_loss_weight=1.0):
     train_losses_per_iter = []
     val_losses_per_iter = []
     train_losses_per_epoch = []
@@ -132,7 +132,7 @@ def train_labrador(model, train_loader, val_loader, categorical_loss_fn, continu
             continuous_loss = continuous_loss_fn(outputs['continuous_output'][masked_cont_indices].squeeze(), labels_continuous[masked_cont_indices])
             continuous_loss = torch.sqrt(continuous_loss)
 
-            loss = categorical_loss + continuous_loss
+            loss = (categorical_loss * categorical_loss_weight) + (continuous_loss * continuous_loss_weight)
             loss.backward()
             optimizer.step()
 
