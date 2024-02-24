@@ -31,7 +31,7 @@ def log_transform_scale_and_bin(data, num_bins=None):
 
     return scaled_data
 
-def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc'], num_bins=10):
+def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc'], num_bins=10, pivot=True):
     """
     Preprocesses a DataFrame containing medical records, including sorting, sampling, pivoting, renaming columns, 
     dropping NaN values, and scaling selected columns.
@@ -52,13 +52,25 @@ def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Po
     mrl : pandas DataFrame
         The preprocessed DataFrame with scaled numerical columns.
     """
-    mrl_sorted = df.sort_values(by=['subject_id', 'hadm_id', 'chartday', 'itemid', 'charthour'])
-    mrl_sampled = mrl_sorted.groupby(['subject_id', 'hadm_id', 'chartday', 'itemid']).first().reset_index()
-    mrl_full = mrl_sampled.pivot(index=['subject_id', 'hadm_id', 'chartday'], columns='itemid', values='valuenum').reset_index()
-    mrl = mrl_full.dropna()
-    mrl = mrl.rename(columns={50882: 'Bic', 50912: 'Crt', 50971: 'Pot', 50983: 'Sod', 51006: 'Ure', 51222: 'Hgb', 51265: 'Plt', 51301: 'Wbc'})
-    columns_to_scale = ['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']
+    if pivot:
+        mrl_sorted = df.sort_values(by=['subject_id', 'hadm_id', 'chartday', 'itemid', 'charthour'])
+        mrl_sampled = mrl_sorted.groupby(['subject_id', 'hadm_id', 'chartday', 'itemid']).first().reset_index()
+        mrl_full = mrl_sampled.pivot(index=['subject_id', 'hadm_id', 'chartday'], columns='itemid', values='valuenum').reset_index()
+        mrl = mrl_full.dropna()
+    else:
+        mrl = df.dropna()
     
+    # replace the id if is contained in the columns
+    ids = {50882: 'Bic', 50912: 'Crt', 50971: 'Pot', 50983: 'Sod', 51006: 'Ure', 51222: 'Hgb', 51265: 'Plt', 51301: 'Wbc'}
+    for column in mrl.columns:
+        for id in ids.keys():
+            if str(id) in str(column):
+                mrl = mrl.rename(columns={str(column): str(column).replace(str(id), ids[id])})
+                break
+
+    columns_to_scale = [col for col in mrl.columns for id in ids.values() if id in col]
+    #mrl = mrl.rename(columns=ids)
+    #columns_to_scale = ['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']
     
     if scaler == 'log':
         mrl[columns_to_scale] = log_transform_scale_and_bin(mrl[columns_to_scale], num_bins=num_bins)
