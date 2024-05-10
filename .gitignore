@@ -2,10 +2,6 @@
 *.csv
 *.json
 
-model/*
-tokenizer/*
-*.pth
-
 # macOS system files
 .DS_Store
 .AppleDouble
