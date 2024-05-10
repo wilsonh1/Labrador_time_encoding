@@ -55,7 +55,7 @@ def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Po
     if pivot:
         mrl_sorted = df.sort_values(by=['subject_id', 'hadm_id', 'chartday', 'itemid', 'charthour'])
         mrl_sampled = mrl_sorted.groupby(['subject_id', 'hadm_id', 'chartday', 'itemid']).first().reset_index()
-        mrl_full = mrl_sampled.pivot(index=['subject_id', 'hadm_id', 'chartday'], columns='itemid', values='valuenum').reset_index()
+        mrl_full = mrl_sampled.pivot(index=['subject_id', 'hadm_id', 'chartday', 'charttime'], columns='itemid', values='valuenum').reset_index()
         mrl = mrl_full.dropna()
     else:
         mrl = df.dropna()
@@ -65,12 +65,13 @@ def preprocess_df(df, scaler=MinMaxScaler(), columns_to_scale=['Bic', 'Crt', 'Po
     for column in mrl.columns:
         for id in ids.keys():
             if str(id) in str(column):
-                mrl = mrl.rename(columns={str(column): str(column).replace(str(id), ids[id])})
+                mrl = mrl.rename(columns={column: str(column).replace(str(id), ids[id])})
                 break
 
-    columns_to_scale = [col for col in mrl.columns for id in ids.values() if id in col]
+    mrl['Time'] = mrl.groupby('hadm_id')['charttime'].diff().apply(lambda x: x.total_seconds() if not pd.isnull(x) else 0)
+    # columns_to_scale = [col for col in mrl.columns for id in ids.values() if id in col]
     #mrl = mrl.rename(columns=ids)
-    #columns_to_scale = ['Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']
+    columns_to_scale = ['Time', 'Bic', 'Crt', 'Pot', 'Sod', 'Ure', 'Hgb', 'Plt', 'Wbc']
     
     if scaler == 'log':
         mrl[columns_to_scale] = log_transform_scale_and_bin(mrl[columns_to_scale], num_bins=num_bins)
@@ -254,6 +255,7 @@ class TextEncoder:
         grouped_df : pandas DataFrame
             A DataFrame containing grouped encoded text lists based on the 'hadm_id' column.
         """
+        print(columns_to_scale)
         if self.labs_as_num:
             if self.Repetition_id:
                 df['nstr'] = df[columns_to_scale].apply(
@@ -282,11 +284,11 @@ class TextEncoder:
                     df['nstr'] = df[columns_to_scale].apply(
                         lambda row: ' '.join(f'{self.scale_to_letter(val)}' for col, val in zip(columns_to_scale, row)),
                         axis=1)
-        grouped_df = df.groupby('hadm_id')['nstr'].apply(list).reset_index()
-        
+        grouped_df = df.groupby('hadm_id')['nstr'].apply(list).apply(lambda x: " ".join(x)).reset_index()
+
         if self.return_lists:
             
-            lab_ids, lab_values = self.string_to_lists(grouped_df['nstr'], is_list=True)
+            lab_ids, lab_values = self.string_to_lists(grouped_df['nstr'], is_list=False)
             grouped_df['lab_ids'] = lab_ids
             grouped_df['lab_values'] = lab_values
             

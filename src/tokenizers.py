@@ -197,6 +197,8 @@ class LabradorTokenizer:
         pad_length = max_length - len(categorical_tokens)
         categorical_tokens.extend([self.pad_token] * pad_length)
         continuous_tokens.extend([self.pad_token] * pad_length)
+        categorical_tokens = categorical_tokens[:max_length]
+        continuous_tokens = continuous_tokens[:max_length]
 
         # Output structure
         output = {

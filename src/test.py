@@ -1,14 +1,14 @@
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error, r2_score
 import numpy as np
 
 def test_model(model, test_loader, device, labs_list):
     model.to(device)
     model.eval()
 
-    metrics = {lab: {'rmse': [], 'mae': [], 'r2': []} for lab in labs_list}
+    metrics = {lab: {'rmse': [], 'mape': [], 'r2': []} for lab in labs_list}
 
     with torch.no_grad():
         for lab in labs_list:
@@ -60,15 +60,22 @@ def test_model(model, test_loader, device, labs_list):
                     count += 1
 
             rmse = np.sqrt(mean_squared_error(true_vals, preds))
-            mae = mean_absolute_error(true_vals, preds)
+            x = []
+            y = []
+            for a, b in zip(true_vals, preds):
+                if a == 0:
+                    continue
+                x.append(a)
+                y.append(b)
+            mae = mean_absolute_percentage_error(x, y)
             r2 = r2_score(true_vals, preds)
 
             metrics[lab]['rmse'].append(rmse)
-            metrics[lab]['mae'].append(mae)
+            metrics[lab]['mape'].append(mae)
             metrics[lab]['r2'].append(r2)
 
             print(f'RMSE: {rmse:.3f}')
-            print(f'MAE: {mae:.3f}')
+            print(f'MAPE: {mae:.3f}')
             print(f'R2: {r2:.3f}')
             print('-------------------')
 

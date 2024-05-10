@@ -1,7 +1,7 @@
 from google.cloud import bigquery
 
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
 def get_df(query, save_csv=False, csv_name="data.csv"):
     """
@@ -19,16 +19,16 @@ def get_df(query, save_csv=False, csv_name="data.csv"):
       The DataFrame containing the results of the query.
     """
     # Load .env file 
-    load_dotenv()
+    # load_dotenv()
 
     # Get GCP keys file path
-    KEYS_FILE = os.getenv("KEYS_FILE")
+    # KEYS_FILE = os.getenv("KEYS_FILE")
 
     # Set environment variables
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = KEYS_FILE
+    # os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = KEYS_FILE
 
     # Initialize the BigQuery client
-    client = bigquery.Client()
+    client = bigquery.Client(project="savvy-reach-415501")
 
     # Run the query
     query_job = client.query(query)
